@@ -2,6 +2,8 @@
 
 Four FastAPI services deployable to **GCP Cloud Run** via GitHub Actions CI/CD.
 
+For a complete step-by-step guide including novice instructions, see [`GCP/README.md`](GCP/README.md).
+
 ---
 
 ## Required GitHub Secrets
@@ -11,38 +13,57 @@ Set these in `Settings → Secrets and variables → Actions → Repository secr
 | Secret | Example value | Description |
 |---|---|---|
 | `GCP_PROJECT_ID` | `my-gcp-project` | GCP project ID |
-| `GCP_SA_KEY` | `{ ... }` | Service account JSON key (base64 or raw JSON) |
+| `GCP_SA_KEY` | `{ ... }` | Service account JSON key (raw JSON, not base64) |
 | `GCP_REGION` | `us-central1` | Cloud Run deployment region |
 
 ### One-time GCP setup
 
+Run `scripts/setup_gcp_infra.sh` for fully automated setup, or perform the steps manually:
+
 ```bash
+PROJECT_ID="<YOUR_GCP_PROJECT_ID>"
+REGION="<YOUR_REGION>"
+
+# Enable required APIs
+gcloud services enable \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  iam.googleapis.com \
+  cloudresourcemanager.googleapis.com
+
 # Create Artifact Registry repo for Docker images
 gcloud artifacts repositories create slm-apps \
   --repository-format=docker \
-  --location=us-central1
+  --location=${REGION}
 
 # Create service account for deployments
 gcloud iam service-accounts create github-deployer \
   --display-name="GitHub Actions Deployer"
 
-# Grant permissions
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:github-deployer@$PROJECT_ID.iam.gserviceaccount.com" \
+# Grant 3 required permissions to the deployer SA
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:github-deployer@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/run.admin"
 
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:github-deployer@$PROJECT_ID.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:github-deployer@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/artifactregistry.writer"
 
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:github-deployer@$PROJECT_ID.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:github-deployer@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/iam.serviceAccountUser"
 
-# Export key for GitHub Secret
+# Allow Cloud Run to pull images from Artifact Registry
+PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format="value(projectNumber)")
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/artifactregistry.reader"
+
+# Export key — paste its full contents as the GCP_SA_KEY secret, then delete the file
 gcloud iam service-accounts keys create key.json \
-  --iam-account=github-deployer@$PROJECT_ID.iam.gserviceaccount.com
-# → paste contents of key.json as GCP_SA_KEY
+  --iam-account=github-deployer@${PROJECT_ID}.iam.gserviceaccount.com
+# → open key.json, copy everything from { to }, paste as GCP_SA_KEY in GitHub
+# → then: rm key.json
 ```
 
 ---
@@ -63,27 +84,30 @@ Each deploy workflow: **test → build Docker image → push to Artifact Registr
 
 ## Local test run before pushing
 
-```bash
-# Smoke test all 11 Course 4 classes
-for cls in \
-  courses/course4_langchain_ecosystem/chapter1_core/class1_lcel_chains \
-  courses/course4_langchain_ecosystem/chapter1_core/class2_memory_conversation \
-  courses/course4_langchain_ecosystem/chapter1_core/class3_structured_output \
-  courses/course4_langchain_ecosystem/chapter2_vector_rag/class1_vector_stores \
-  courses/course4_langchain_ecosystem/chapter2_vector_rag/class2_advanced_rag \
-  courses/course4_langchain_ecosystem/chapter2_vector_rag/class3_rag_eval \
-  courses/course4_langchain_ecosystem/chapter3_agents/class1_tools_function_calling \
-  courses/course4_langchain_ecosystem/chapter3_agents/class2_react_agent \
-  courses/course4_langchain_ecosystem/chapter3_agents/class3_langgraph_stateful \
-  courses/course4_langchain_ecosystem/chapter4_production/class1_langsmith_tracing \
-  courses/course4_langchain_ecosystem/chapter4_production/class2_production_patterns; do
-  conda run -n slm-gpu bash $cls/run.sh && echo "PASS: $(basename $cls)" || echo "FAIL: $(basename $cls)"
-done
+Run from the root of this repository (`langchain-production-stack/`):
 
+```bash
 # Unit tests for all 4 production projects
 for proj in 01_smolsearch 02_ragify 03_agentflow 04_llmops_baseline; do
-  PYTHONPATH="courses/projects/$proj" conda run -n slm-gpu pytest courses/projects/$proj/tests/ -q
+  PYTHONPATH="${proj}" python -m pytest ${proj}/tests/ -q && \
+    echo "PASS: ${proj}" || echo "FAIL: ${proj}"
 done
+```
+
+---
+
+## Manual deploy (without CI/CD)
+
+```bash
+# After running setup_gcp_infra.sh and setting PROJECT_ID/REGION in the script:
+./scripts/deploy_all.sh
+```
+
+After deploying, verify all endpoints:
+
+```bash
+# Edit scripts/test_endpoints.sh to set the 4 service URLs, then:
+./scripts/test_endpoints.sh
 ```
 
 ---
@@ -92,7 +116,7 @@ done
 
 | Service | Endpoints |
 |---|---|
-| SmolSearch | `POST /index`, `POST /search`, `POST /answer`, `POST /stream`, `GET /health` |
+| SmolSearch | `POST /index`, `POST /search`, `GET /health` |
 | RAGify | `POST /index`, `POST /query` (strategy: similarity/mmr/multi_query), `GET /health` |
 | AgentFlow | `POST /run`, `GET /health` |
 | LLMOps Baseline | `POST /query`, `GET /metrics`, `GET /health` |
