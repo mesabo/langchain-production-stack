@@ -22,6 +22,7 @@ version: "3.9"
 #
 # ─── PORTS ──────────────────────────────────────────────────────────────────
 #
+#  Portal (demo UI): http://localhost:8080  →  recruiter-facing Try it out page
 #  SmolSearch:       http://localhost:8081  →  docs at /docs
 #  RAGify:           http://localhost:8082  →  docs at /docs
 #  AgentFlow:        http://localhost:8083  →  docs at /docs
@@ -50,6 +51,19 @@ version: "3.9"
 #    See: deploy/cloudrun*.sh in each project directory.
 
 services:
+
+  portal:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./portal:/usr/share/nginx/html:ro          # bind-mount → edits visible instantly, no rebuild
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
   smolsearch:
     build:
