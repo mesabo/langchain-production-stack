@@ -1,31 +1,53 @@
 version: "3.9"
 
-# Local development environment.
-# All 4 services run in Docker, models cached in a shared named volume.
+# Local development environment — all 4 services with hot-reload.
 #
-# Usage:
-#   docker compose up --build          # start all 4 services (builds first)
-#   docker compose up smolsearch       # start one service only
-#   docker compose down                # stop and remove containers
-#   docker compose down -v             # also delete the model cache volume
+# ─── USAGE ──────────────────────────────────────────────────────────────────
 #
-# Ports (local machine):
-#   SmolSearch:      http://localhost:8081
-#   RAGify:          http://localhost:8082
-#   AgentFlow:       http://localhost:8083
-#   LLMOps Baseline: http://localhost:8084
+#  First start (downloads models, ~500 MB each, cached in hf_cache volume):
+#    docker compose up --build
 #
-# Health checks:
-#   curl http://localhost:8081/health
-#   curl http://localhost:8082/health
-#   curl http://localhost:8083/health
-#   curl http://localhost:8084/health
+#  After code changes — NO rebuild needed:
+#    docker compose up                      # or: docker compose restart <service>
+#    docker compose up smolsearch           # single service only
 #
-# Difference from GCP (Cloud Run):
-#   Dev:  HF_HOME=/app/.cache/huggingface (persisted in Docker volume "hf_cache")
-#   Prod: HF_HOME=/tmp/.cache/huggingface (Cloud Run override via --set-env-vars)
+#  Hot-reload (uvicorn --reload):
+#    Python source files are bind-mounted from the host into the container.
+#    When you save a .py file, uvicorn automatically restarts that service
+#    in <1 second — no docker compose down/up required.
 #
-# First run downloads models (~500 MB per service). Subsequent runs reuse the cache.
+#  Tear down:
+#    docker compose down                    # stop and remove containers
+#    docker compose down -v                 # also delete hf_cache model volume
+#
+# ─── PORTS ──────────────────────────────────────────────────────────────────
+#
+#  SmolSearch:       http://localhost:8081  →  docs at /docs
+#  RAGify:           http://localhost:8082  →  docs at /docs
+#  AgentFlow:        http://localhost:8083  →  docs at /docs
+#  LLMOps Baseline:  http://localhost:8084  →  docs at /docs
+#
+# ─── HOW HOT-RELOAD WORKS ───────────────────────────────────────────────────
+#
+#  Each service has TWO volume mounts:
+#    1. hf_cache → /app/.cache/huggingface   (persists model downloads between restarts)
+#    2. ./NN_project → /app                  (bind-mounts your source code into the container)
+#
+#  The second mount shadows the COPY in the Dockerfile. Any edit you make to
+#  app/, src/, configs/, or data/ on the host is immediately visible inside the
+#  container. uvicorn --reload watches for .py changes and restarts the ASGI app.
+#
+#  The HF model cache is NOT re-downloaded because mount 1 is nested under mount 2
+#  at /app/.cache/huggingface and Docker volumes take precedence over bind mounts
+#  for that subtree.
+#
+# ─── PRODUCTION vs DEVELOPMENT ──────────────────────────────────────────────
+#
+#  This file is for local development only. Production uses Cloud Run with:
+#    - No bind-mounts (immutable container image)
+#    - HF_HOME=/tmp/.cache/huggingface (Cloud Run ephemeral disk)
+#    - No --reload (wastes CPU on a production server)
+#    See: deploy/cloudrun*.sh in each project directory.
 
 services:
 
@@ -38,13 +60,22 @@ services:
     environment:
       - HF_HOME=/app/.cache/huggingface
     volumes:
-      - hf_cache:/app/.cache/huggingface
+      - hf_cache:/app/.cache/huggingface       # persists model downloads
+      - ./01_smolsearch:/app                   # bind-mount source → hot-reload
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8080
+      --reload
+      --reload-dir /app/app
+      --reload-dir /app/src
+      --workers 1
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 90s
 
   ragify:
     build:
@@ -55,13 +86,22 @@ services:
     environment:
       - HF_HOME=/app/.cache/huggingface
     volumes:
-      - hf_cache:/app/.cache/huggingface
+      - hf_cache:/app/.cache/huggingface       # persists model downloads
+      - ./02_ragify:/app                       # bind-mount source → hot-reload
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8080
+      --reload
+      --reload-dir /app/app
+      --reload-dir /app/src
+      --workers 1
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 90s
 
   agentflow:
     build:
@@ -72,13 +112,22 @@ services:
     environment:
       - HF_HOME=/app/.cache/huggingface
     volumes:
-      - hf_cache:/app/.cache/huggingface
+      - hf_cache:/app/.cache/huggingface       # persists model downloads
+      - ./03_agentflow:/app                    # bind-mount source → hot-reload
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8080
+      --reload
+      --reload-dir /app/app
+      --reload-dir /app/src
+      --workers 1
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 90s
 
   llmops_baseline:
     build:
@@ -89,13 +138,22 @@ services:
     environment:
       - HF_HOME=/app/.cache/huggingface
     volumes:
-      - hf_cache:/app/.cache/huggingface
+      - hf_cache:/app/.cache/huggingface       # persists model downloads
+      - ./04_llmops_baseline:/app              # bind-mount source → hot-reload
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8080
+      --reload
+      --reload-dir /app/app
+      --reload-dir /app/src
+      --workers 1
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 90s
 
 volumes:
   hf_cache:
