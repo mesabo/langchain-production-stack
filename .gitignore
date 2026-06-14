@@ -11,3 +11,9 @@ build/
 .cache/huggingface/
 *.nohup.log
 results/
+
+# GCP service account keys — never commit these
+key.json
+*.key.json
+service-account*.json
+gcp-credentials*.json
