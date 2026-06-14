@@ -2,7 +2,7 @@ name: Deploy 03-AgentFlow to Cloud Run
 
 on:
   push:
-    branches: [main]
+    branches: [release]
     paths:
       - "03_agentflow/**"
       - ".github/workflows/deploy-03-agentflow.yml"

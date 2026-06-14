@@ -2,7 +2,7 @@ name: Deploy 01-SmolSearch to Cloud Run
 
 on:
   push:
-    branches: [main]
+    branches: [release]
     paths:
       - "01_smolsearch/**"
       - ".github/workflows/deploy-01-smolsearch.yml"

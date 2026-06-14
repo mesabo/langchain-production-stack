@@ -2,7 +2,7 @@ name: Deploy 04-LLMOps Baseline to Cloud Run
 
 on:
   push:
-    branches: [main]
+    branches: [release]
     paths:
       - "04_llmops_baseline/**"
       - ".github/workflows/deploy-04-llmops-baseline.yml"

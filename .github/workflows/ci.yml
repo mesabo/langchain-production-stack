@@ -2,9 +2,9 @@ name: CI — Lint and Test All Projects
 
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, release, "feat/**"]
   pull_request:
-    branches: [main]
+    branches: [main, release]
 
 jobs:
   test-projects:

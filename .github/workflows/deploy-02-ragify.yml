@@ -2,7 +2,7 @@ name: Deploy 02-RAGify to Cloud Run
 
 on:
   push:
-    branches: [main]
+    branches: [release]
     paths:
       - "02_ragify/**"
       - ".github/workflows/deploy-02-ragify.yml"

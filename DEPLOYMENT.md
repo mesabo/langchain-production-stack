@@ -70,15 +70,20 @@ gcloud iam service-accounts keys create key.json \
 
 ## Workflows
 
-| Workflow file | Triggers on | Deploys |
+| Workflow file | Triggers on | Does |
 |---|---|---|
-| `ci.yml` | every push + PR | runs unit tests for all 4 projects |
-| `deploy-01-smolsearch.yml` | push to main + changes in `01_smolsearch/` | Cloud Run: `smolsearch` |
-| `deploy-02-ragify.yml` | push to main + changes in `02_ragify/` | Cloud Run: `ragify` |
-| `deploy-03-agentflow.yml` | push to main + changes in `03_agentflow/` | Cloud Run: `agentflow` |
-| `deploy-04-llmops-baseline.yml` | push to main + changes in `04_llmops_baseline/` | Cloud Run: `llmops-baseline` |
+| `ci.yml` | push/PR to `main`, `release`, `feat/**` | runs unit tests for all 4 projects |
+| `deploy-01-smolsearch.yml` | push to **`release`** + changes in `01_smolsearch/` | Cloud Run: `smolsearch` |
+| `deploy-02-ragify.yml` | push to **`release`** + changes in `02_ragify/` | Cloud Run: `ragify` |
+| `deploy-03-agentflow.yml` | push to **`release`** + changes in `03_agentflow/` | Cloud Run: `agentflow` |
+| `deploy-04-llmops-baseline.yml` | push to **`release`** + changes in `04_llmops_baseline/` | Cloud Run: `llmops-baseline` |
 
 Each deploy workflow: **test → build Docker image → push to Artifact Registry → gcloud run deploy**.
+
+**Branch strategy:**
+- `feat/*` — feature development; CI tests run, no deploy
+- `main` — integration; CI tests run, no deploy
+- `release` — production gate; CI tests run, then deploy to Cloud Run
 
 ---
 
