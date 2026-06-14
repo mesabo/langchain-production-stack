@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sLM Production Stack · mesabo</title>
+  <meta name="description" content="4 production-grade ML APIs: semantic search, RAG, agents, LLM ops. Built by mesabo." />
+  <meta name="author" content="mesabo" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .hero-grid {
+      background-image:
+        linear-gradient(rgba(148,163,184,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148,163,184,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .collapsible { overflow: hidden; transition: max-height 0.3s ease; }
+    .collapsible.closed { max-height: 0; }
+    .collapsible.open { max-height: 2000px; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+
+  <!-- ── Navbar ── -->
+  <nav class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-6 py-3">
+    <div class="max-w-6xl mx-auto flex items-center justify-between gap-4">
+      <!-- Logo -->
+      <a href="#" class="text-white font-bold text-lg tracking-tight flex items-center gap-2">
+        <span>&#9889;</span> sLM Stack
+      </a>
+
+      <!-- Right side -->
+      <div class="flex items-center gap-3 flex-wrap justify-end">
+        <!-- GitHub -->
+        <a href="https://github.com/mesabo/langchain-production-stack"
+           target="_blank" rel="noopener"
+           class="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm transition-colors">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          GitHub
+        </a>
+
+        <!-- Portfolio -->
+        <a href="https://mesabo.github.io" target="_blank" rel="noopener"
+           class="text-slate-400 hover:text-white text-sm transition-colors">
+          mesabo
+        </a>
+
+        <!-- Env toggle -->
+        <div class="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
+          <button id="btn-local" onclick="setEnv('local')"
+            class="text-xs px-3 py-1 rounded-md font-medium transition-colors bg-slate-700 text-white">
+            Local
+          </button>
+          <button id="btn-prod" onclick="setEnv('prod')"
+            class="text-xs px-3 py-1 rounded-md font-medium transition-colors text-slate-400 hover:text-white">
+            Prod
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Prod warning banner ── -->
+  <div id="env-banner" class="hidden bg-amber-900/50 border-b border-amber-700/50 text-amber-300 text-sm px-6 py-2.5 text-center">
+    &#9888;&nbsp; Production mode — APIs must be deployed to Cloud Run. Update <code class="font-mono bg-amber-900/60 px-1 rounded">BASE_URLS</code> in the source to your deployed URLs.
+  </div>
+
+  <!-- ── Hero ── -->
+  <section class="hero-grid bg-slate-800/30 border-b border-slate-800 px-6 py-20">
+    <div class="max-w-3xl mx-auto text-center">
+      <div class="inline-flex items-center gap-2 bg-slate-800 border border-slate-700 text-slate-400 text-xs px-3 py-1 rounded-full mb-6">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
+        4 services · FastAPI · LangChain · SmolLM2
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-bold text-white mb-4 tracking-tight">
+        sLM Production Stack
+      </h1>
+      <p class="text-slate-400 text-lg mb-8 leading-relaxed">
+        4 production-grade ML APIs built with FastAPI · LangChain · SmolLM2.<br class="hidden sm:block" />
+        Live interactive demo — call each endpoint from your browser.
+      </p>
+
+      <div class="flex items-center justify-center gap-3 flex-wrap mb-10">
+        <a href="https://github.com/mesabo/langchain-production-stack"
+           target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 bg-white text-slate-900 font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-slate-100 transition-colors">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          GitHub
+        </a>
+        <a href="https://mesabo.github.io" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 border border-slate-600 text-slate-300 font-semibold text-sm px-5 py-2.5 rounded-lg hover:border-slate-400 hover:text-white transition-colors">
+          Portfolio &#8599;
+        </a>
+      </div>
+
+      <p class="text-slate-500 text-sm">
+        Built by&nbsp;
+        <a href="https://mesabo.github.io" target="_blank" rel="noopener"
+           class="text-slate-400 hover:text-white underline underline-offset-2 transition-colors">
+          mesabo
+        </a>
+        &nbsp;·&nbsp;
+        <a href="https://mesabo.github.io" target="_blank" rel="noopener"
+           class="text-slate-400 hover:text-white transition-colors">
+          mesabo.github.io
+        </a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Projects grid ── -->
+  <main class="max-w-6xl mx-auto px-6 py-16">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- ── Card: SmolSearch ── -->
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden flex flex-col">
+        <div class="h-1 bg-blue-500"></div>
+        <div class="p-6 flex flex-col flex-1">
+          <!-- Header -->
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <h2 class="text-white font-semibold text-lg">SmolSearch</h2>
+                <span id="pill-smolsearch"
+                  class="text-xs px-2 py-0.5 rounded-full bg-slate-600 text-slate-300">
+                  Checking&#8230;
+                </span>
+              </div>
+              <p class="text-slate-400 text-sm leading-relaxed">
+                Hybrid semantic search and RAG over any document corpus. Index once, search and get generated answers immediately.
+              </p>
+            </div>
+          </div>
+
+          <!-- Tech tags -->
+          <div class="flex flex-wrap gap-1.5 mb-5">
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">FastAPI</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">FAISS</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">MiniLM-L6</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">LCEL</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">SmolLM2</span>
+          </div>
+
+          <!-- Try it out toggle -->
+          <button onclick="toggleTry('smolsearch')"
+            class="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-sm font-medium mb-4 transition-colors w-fit">
+            <span id="try-arrow-smolsearch" class="transition-transform">&#9654;</span>
+            Try it out
+          </button>
+
+          <!-- Collapsible section -->
+          <div id="try-smolsearch" class="collapsible closed">
+            <div class="bg-slate-700/50 rounded-xl p-4 space-y-3">
+              <!-- Endpoint selector -->
+              <div class="flex items-center gap-2">
+                <span id="method-smolsearch"
+                  class="text-xs font-mono px-2 py-0.5 rounded bg-green-800 text-green-200">POST</span>
+                <select id="sel-smolsearch" onchange="updateEndpoint('smolsearch')"
+                  class="flex-1 bg-slate-900 text-slate-200 text-sm font-mono px-3 py-1.5 rounded border border-slate-600 focus:outline-none focus:border-slate-400">
+                  <option data-method="POST" data-path="/index"
+                    data-body='{"documents": ["LoRA injects trainable low-rank matrices into transformer attention layers.", "FAISS enables fast nearest-neighbour search at billion-vector scale."]}'>
+                    POST /index
+                  </option>
+                  <option data-method="POST" data-path="/search"
+                    data-body='{"query": "What is LoRA?", "k": 3, "mode": "similarity"}'>
+                    POST /search
+                  </option>
+                  <option data-method="POST" data-path="/answer"
+                    data-body='{"query": "How does LoRA reduce trainable parameters?", "k": 3}'>
+                    POST /answer
+                  </option>
+                  <option data-method="GET" data-path="/health" data-body="">
+                    GET /health
+                  </option>
+                </select>
+              </div>
+
+              <!-- Body textarea -->
+              <textarea id="body-smolsearch" rows="4"
+                class="bg-slate-900 text-slate-200 font-mono text-sm p-3 rounded border border-slate-600 w-full focus:outline-none focus:border-slate-400 resize-y"
+                placeholder="Request body (JSON)"></textarea>
+
+              <!-- Send button -->
+              <button id="btn-smolsearch" onclick="sendRequest('smolsearch')"
+                class="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg transition-colors">
+                Send &#8594;
+              </button>
+
+              <!-- Response -->
+              <pre id="response-smolsearch"
+                class="bg-slate-950 text-slate-300 font-mono text-sm p-4 rounded-lg overflow-auto max-h-72 whitespace-pre-wrap break-words text-left"
+                style="min-height:56px">— response will appear here —</pre>
+              <div id="latency-smolsearch" class="text-xs text-slate-500 font-mono"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Card: RAGify ── -->
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden flex flex-col">
+        <div class="h-1 bg-emerald-500"></div>
+        <div class="p-6 flex flex-col flex-1">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <h2 class="text-white font-semibold text-lg">RAGify</h2>
+                <span id="pill-ragify"
+                  class="text-xs px-2 py-0.5 rounded-full bg-slate-600 text-slate-300">
+                  Checking&#8230;
+                </span>
+              </div>
+              <p class="text-slate-400 text-sm leading-relaxed">
+                Multi-strategy RAG pipeline. Compare similarity, MMR, and multi-query retrieval on the same question. 28 seed documents pre-loaded.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-1.5 mb-5">
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">FastAPI</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">RAG</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">RAGAS</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">FAISS</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">MMR</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">SmolLM2</span>
+          </div>
+
+          <button onclick="toggleTry('ragify')"
+            class="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm font-medium mb-4 transition-colors w-fit">
+            <span id="try-arrow-ragify" class="transition-transform">&#9654;</span>
+            Try it out
+          </button>
+
+          <div id="try-ragify" class="collapsible closed">
+            <div class="bg-slate-700/50 rounded-xl p-4 space-y-3">
+              <div class="flex items-center gap-2">
+                <span id="method-ragify"
+                  class="text-xs font-mono px-2 py-0.5 rounded bg-green-800 text-green-200">POST</span>
+                <select id="sel-ragify" onchange="updateEndpoint('ragify')"
+                  class="flex-1 bg-slate-900 text-slate-200 text-sm font-mono px-3 py-1.5 rounded border border-slate-600 focus:outline-none focus:border-slate-400">
+                  <option data-method="POST" data-path="/query"
+                    data-body='{"query": "What is experience replay in continual learning?", "k": 3, "strategy": "similarity"}'>
+                    POST /query
+                  </option>
+                  <option data-method="POST" data-path="/index"
+                    data-body='{"documents": ["Transformer models use self-attention to weigh input tokens when producing output."]}'>
+                    POST /index
+                  </option>
+                  <option data-method="GET" data-path="/health" data-body="">
+                    GET /health
+                  </option>
+                </select>
+              </div>
+
+              <textarea id="body-ragify" rows="4"
+                class="bg-slate-900 text-slate-200 font-mono text-sm p-3 rounded border border-slate-600 w-full focus:outline-none focus:border-slate-400 resize-y"
+                placeholder="Request body (JSON)"></textarea>
+
+              <button id="btn-ragify" onclick="sendRequest('ragify')"
+                class="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg transition-colors">
+                Send &#8594;
+              </button>
+
+              <pre id="response-ragify"
+                class="bg-slate-950 text-slate-300 font-mono text-sm p-4 rounded-lg overflow-auto max-h-72 whitespace-pre-wrap break-words text-left"
+                style="min-height:56px">— response will appear here —</pre>
+              <div id="latency-ragify" class="text-xs text-slate-500 font-mono"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Card: AgentFlow ── -->
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden flex flex-col">
+        <div class="h-1 bg-purple-500"></div>
+        <div class="p-6 flex flex-col flex-1">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <h2 class="text-white font-semibold text-lg">AgentFlow</h2>
+                <span id="pill-agentflow"
+                  class="text-xs px-2 py-0.5 rounded-full bg-slate-600 text-slate-300">
+                  Checking&#8230;
+                </span>
+              </div>
+              <p class="text-slate-400 text-sm leading-relaxed">
+                Stateful LangGraph ReAct agent with a math tool registry. Each step is logged — inspect the full reasoning trace in the response.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-1.5 mb-5">
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">FastAPI</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">LangGraph</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">ReAct</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">Tools</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">SmolLM2</span>
+          </div>
+
+          <button onclick="toggleTry('agentflow')"
+            class="flex items-center gap-1.5 text-purple-400 hover:text-purple-300 text-sm font-medium mb-4 transition-colors w-fit">
+            <span id="try-arrow-agentflow" class="transition-transform">&#9654;</span>
+            Try it out
+          </button>
+
+          <div id="try-agentflow" class="collapsible closed">
+            <div class="bg-slate-700/50 rounded-xl p-4 space-y-3">
+              <div class="flex items-center gap-2">
+                <span id="method-agentflow"
+                  class="text-xs font-mono px-2 py-0.5 rounded bg-green-800 text-green-200">POST</span>
+                <select id="sel-agentflow" onchange="updateEndpoint('agentflow')"
+                  class="flex-1 bg-slate-900 text-slate-200 text-sm font-mono px-3 py-1.5 rounded border border-slate-600 focus:outline-none focus:border-slate-400">
+                  <option data-method="POST" data-path="/run"
+                    data-body='{"task": "What is the square root of 225?"}'>
+                    POST /run
+                  </option>
+                  <option data-method="GET" data-path="/health" data-body="">
+                    GET /health
+                  </option>
+                </select>
+              </div>
+
+              <textarea id="body-agentflow" rows="4"
+                class="bg-slate-900 text-slate-200 font-mono text-sm p-3 rounded border border-slate-600 w-full focus:outline-none focus:border-slate-400 resize-y"
+                placeholder="Request body (JSON)"></textarea>
+
+              <button id="btn-agentflow" onclick="sendRequest('agentflow')"
+                class="w-full bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg transition-colors">
+                Send &#8594;
+              </button>
+
+              <pre id="response-agentflow"
+                class="bg-slate-950 text-slate-300 font-mono text-sm p-4 rounded-lg overflow-auto max-h-72 whitespace-pre-wrap break-words text-left"
+                style="min-height:56px">— response will appear here —</pre>
+              <div id="latency-agentflow" class="text-xs text-slate-500 font-mono"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Card: LLMOps Baseline ── -->
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden flex flex-col">
+        <div class="h-1 bg-orange-500"></div>
+        <div class="p-6 flex flex-col flex-1">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <h2 class="text-white font-semibold text-lg">LLMOps Baseline</h2>
+                <span id="pill-llmops"
+                  class="text-xs px-2 py-0.5 rounded-full bg-slate-600 text-slate-300">
+                  Checking&#8230;
+                </span>
+              </div>
+              <p class="text-slate-400 text-sm leading-relaxed">
+                Reference LLM ops stack: semantic cache, token tracking, and exponential-backoff retry. Watch cache_hit flip to true on the second call.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-1.5 mb-5">
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">FastAPI</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">Semantic Cache</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">MiniLM-L6</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">SmolLM2</span>
+            <span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-md">Prometheus</span>
+          </div>
+
+          <button onclick="toggleTry('llmops')"
+            class="flex items-center gap-1.5 text-orange-400 hover:text-orange-300 text-sm font-medium mb-4 transition-colors w-fit">
+            <span id="try-arrow-llmops" class="transition-transform">&#9654;</span>
+            Try it out
+          </button>
+
+          <div id="try-llmops" class="collapsible closed">
+            <div class="bg-slate-700/50 rounded-xl p-4 space-y-3">
+              <div class="flex items-center gap-2">
+                <span id="method-llmops"
+                  class="text-xs font-mono px-2 py-0.5 rounded bg-green-800 text-green-200">POST</span>
+                <select id="sel-llmops" onchange="updateEndpoint('llmops')"
+                  class="flex-1 bg-slate-900 text-slate-200 text-sm font-mono px-3 py-1.5 rounded border border-slate-600 focus:outline-none focus:border-slate-400">
+                  <option data-method="POST" data-path="/query"
+                    data-body='{"prompt": "Explain LoRA fine-tuning in one sentence.", "bypass_cache": false}'>
+                    POST /query
+                  </option>
+                  <option data-method="GET" data-path="/metrics" data-body="">
+                    GET /metrics
+                  </option>
+                  <option data-method="GET" data-path="/health" data-body="">
+                    GET /health
+                  </option>
+                </select>
+              </div>
+
+              <textarea id="body-llmops" rows="4"
+                class="bg-slate-900 text-slate-200 font-mono text-sm p-3 rounded border border-slate-600 w-full focus:outline-none focus:border-slate-400 resize-y"
+                placeholder="Request body (JSON)"></textarea>
+
+              <button id="btn-llmops" onclick="sendRequest('llmops')"
+                class="w-full bg-orange-700 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg transition-colors">
+                Send &#8594;
+              </button>
+
+              <pre id="response-llmops"
+                class="bg-slate-950 text-slate-300 font-mono text-sm p-4 rounded-lg overflow-auto max-h-72 whitespace-pre-wrap break-words text-left"
+                style="min-height:56px">— response will appear here —</pre>
+              <div id="latency-llmops" class="text-xs text-slate-500 font-mono"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /grid -->
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer class="border-t border-slate-800 px-6 py-10 text-center">
+    <p class="text-slate-500 text-sm mb-2">
+      Built with FastAPI · LangChain · HuggingFace · Python
+    </p>
+    <p class="text-slate-500 text-sm mb-1">
+      <a href="https://mesabo.github.io" target="_blank" rel="noopener"
+         class="text-slate-400 hover:text-white transition-colors">mesabo</a>
+      &nbsp;·&nbsp;
+      <a href="https://mesabo.github.io" target="_blank" rel="noopener"
+         class="text-slate-400 hover:text-white transition-colors">mesabo.github.io</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/mesabo/langchain-production-stack"
+         target="_blank" rel="noopener"
+         class="text-slate-400 hover:text-white transition-colors">github.com/mesabo/langchain-production-stack</a>
+    </p>
+    <p class="text-slate-600 text-xs mt-3">
+      &copy; 2025 mesabo &nbsp;·&nbsp; mesabo.github.io &nbsp;·&nbsp; MIT License<br />
+      Stack: Python &nbsp;·&nbsp; FastAPI &nbsp;·&nbsp; LangChain &nbsp;·&nbsp; HuggingFace &nbsp;·&nbsp; Docker &nbsp;·&nbsp; Vercel
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script>
+    // ── Config ──────────────────────────────────────────────────────────
+    const BASE_URLS = {
+      local: {
+        smolsearch: 'http://localhost:8081',
+        ragify:     'http://localhost:8082',
+        agentflow:  'http://localhost:8083',
+        llmops:     'http://localhost:8084',
+      },
+      prod: {
+        // Update these after deploying to Cloud Run
+        smolsearch: 'https://smolsearch-YOUR_HASH.a.run.app',
+        ragify:     'https://ragify-YOUR_HASH.a.run.app',
+        agentflow:  'https://agentflow-YOUR_HASH.a.run.app',
+        llmops:     'https://llmops-YOUR_HASH.a.run.app',
+      },
+    };
+
+    let env = 'local';
+
+    // ── Environment toggle ───────────────────────────────────────────────
+    function setEnv(e) {
+      env = e;
+      document.getElementById('env-banner').classList.toggle('hidden', e === 'local');
+
+      const btnLocal = document.getElementById('btn-local');
+      const btnProd  = document.getElementById('btn-prod');
+      if (e === 'local') {
+        btnLocal.className = 'text-xs px-3 py-1 rounded-md font-medium transition-colors bg-slate-700 text-white';
+        btnProd.className  = 'text-xs px-3 py-1 rounded-md font-medium transition-colors text-slate-400 hover:text-white';
+      } else {
+        btnProd.className  = 'text-xs px-3 py-1 rounded-md font-medium transition-colors bg-slate-700 text-white';
+        btnLocal.className = 'text-xs px-3 py-1 rounded-md font-medium transition-colors text-slate-400 hover:text-white';
+      }
+      checkAllHealth();
+    }
+
+    // ── Toggle "Try it out" ──────────────────────────────────────────────
+    function toggleTry(svc) {
+      const el    = document.getElementById(`try-${svc}`);
+      const arrow = document.getElementById(`try-arrow-${svc}`);
+      const isOpen = el.classList.contains('open');
+      el.classList.toggle('open', !isOpen);
+      el.classList.toggle('closed', isOpen);
+      arrow.style.transform = isOpen ? '' : 'rotate(90deg)';
+    }
+
+    // ── Endpoint selector ────────────────────────────────────────────────
+    function updateEndpoint(svc) {
+      const sel    = document.getElementById(`sel-${svc}`);
+      const opt    = sel.options[sel.selectedIndex];
+      const method = opt.dataset.method;
+      const body   = opt.dataset.body;
+
+      const methodEl = document.getElementById(`method-${svc}`);
+      methodEl.textContent = method;
+      methodEl.className = method === 'GET'
+        ? 'text-xs font-mono px-2 py-0.5 rounded bg-blue-800 text-blue-200'
+        : 'text-xs font-mono px-2 py-0.5 rounded bg-green-800 text-green-200';
+
+      document.getElementById(`body-${svc}`).value = body;
+    }
+
+    // ── Send request ─────────────────────────────────────────────────────
+    function sendRequest(svc) {
+      const sel    = document.getElementById(`sel-${svc}`);
+      const opt    = sel.options[sel.selectedIndex];
+      const method = opt.dataset.method;
+      const path   = opt.dataset.path;
+      const body   = document.getElementById(`body-${svc}`).value;
+      callApi(svc, method, path, body, `response-${svc}`, `latency-${svc}`);
+    }
+
+    // ── Health check ─────────────────────────────────────────────────────
+    async function checkHealth(serviceKey, pillId) {
+      const pill = document.getElementById(pillId);
+      pill.textContent = 'Checking…';
+      pill.className = 'text-xs px-2 py-0.5 rounded-full bg-slate-600 text-slate-300';
+      try {
+        const base = BASE_URLS[env][serviceKey];
+        const r = await fetch(`${base}/health`, { signal: AbortSignal.timeout(4000) });
+        if (r.ok) {
+          pill.textContent = '● Online';
+          pill.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-900 text-emerald-400';
+        } else {
+          throw new Error(String(r.status));
+        }
+      } catch {
+        pill.textContent = '● Offline';
+        pill.className = 'text-xs px-2 py-0.5 rounded-full bg-red-900 text-red-400';
+      }
+    }
+
+    function checkAllHealth() {
+      checkHealth('smolsearch', 'pill-smolsearch');
+      checkHealth('ragify',     'pill-ragify');
+      checkHealth('agentflow',  'pill-agentflow');
+      checkHealth('llmops',     'pill-llmops');
+    }
+
+    // ── API call ──────────────────────────────────────────────────────────
+    async function callApi(serviceKey, method, path, bodyStr, responseElId, latencyElId) {
+      const base       = BASE_URLS[env][serviceKey];
+      const url        = `${base}${path}`;
+      const responseEl = document.getElementById(responseElId);
+      const latencyEl  = document.getElementById(latencyElId);
+      const sendBtn    = document.getElementById(`btn-${serviceKey}`);
+
+      // Disable button and show spinner
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = '<span class="spinner"></span>Sending…';
+
+      responseEl.textContent = 'Sending…';
+      latencyEl.textContent  = '';
+
+      const t0 = performance.now();
+      try {
+        const opts = {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(30000),
+        };
+        if (method !== 'GET' && bodyStr.trim()) {
+          opts.body = bodyStr.trim();
+        }
+        const r   = await fetch(url, opts);
+        const ms  = Math.round(performance.now() - t0);
+        let json;
+        try {
+          json = await r.json();
+          responseEl.textContent = JSON.stringify(json, null, 2);
+        } catch {
+          const text = await r.text().catch(() => '(empty response)');
+          responseEl.textContent = text;
+        }
+        latencyEl.textContent = `${ms} ms  ·  HTTP ${r.status}`;
+        latencyEl.className   = r.ok
+          ? 'text-xs text-emerald-400 font-mono mt-1'
+          : 'text-xs text-red-400 font-mono mt-1';
+      } catch (err) {
+        const ms = Math.round(performance.now() - t0);
+        responseEl.textContent = `Error: ${err.message}`;
+        latencyEl.textContent  = `${ms} ms  ·  Network error`;
+        latencyEl.className    = 'text-xs text-red-400 font-mono mt-1';
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = 'Send →';
+      }
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      ['smolsearch', 'ragify', 'agentflow', 'llmops'].forEach(updateEndpoint);
+      checkAllHealth();
+    });
+  </script>
+</body>
+</html>
