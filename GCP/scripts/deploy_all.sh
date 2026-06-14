@@ -20,30 +20,34 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# CONFIGURATION -- edit these values before running
+# CONFIGURATION -- loaded from .env at the repo root
 # ---------------------------------------------------------------------------
 
-PROJECT_ID="<YOUR_GCP_PROJECT_ID>"
-# What to put here: your GCP project ID.
-# Find it with: gcloud projects list
-# Example: langchain-prod-stack-123456
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ENV_FILE="${REPO_ROOT}/.env"
 
-REGION="<YOUR_REGION>"
-# What to put here: the GCP region where services are deployed.
-# Must match the region where your Artifact Registry repository lives.
-# Example: us-central1
+if [[ ! -f "${ENV_FILE}" ]]; then
+    echo "[ERROR] .env file not found at ${ENV_FILE}"
+    echo "        Copy .env.example to .env and fill in your GCP_PROJECT_ID and GCP_REGION."
+    exit 1
+fi
 
-GIT_SHA=$(git rev-parse --short HEAD)
+# shellcheck disable=SC1090
+source "${ENV_FILE}"
+
+PROJECT_ID="${GCP_PROJECT_ID}"
+REGION="${GCP_REGION}"
+
+GIT_SHA=$(git -C "${REPO_ROOT}" rev-parse --short HEAD)
 # Uses the current git commit's short SHA as the Docker image tag.
 # This ensures every image is uniquely traceable to a specific commit.
-# Override with a specific value if you want to deploy a particular commit:
-#   GIT_SHA="abc123d"
 
 # ---------------------------------------------------------------------------
 # Derived values -- do not edit below this line
 # ---------------------------------------------------------------------------
 
-REPO_NAME="slm-apps"
+REPO_NAME="${GCP_REGISTRY_REPO:-slm-stack}"
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
 
 # ---------------------------------------------------------------------------
@@ -77,13 +81,13 @@ if ! command -v gcloud &>/dev/null; then
     exit 1
 fi
 
-if [[ "${PROJECT_ID}" == "<YOUR_GCP_PROJECT_ID>" ]]; then
-    error "You have not set PROJECT_ID. Edit the top of this script."
+if [[ -z "${PROJECT_ID:-}" ]]; then
+    error "GCP_PROJECT_ID is not set in ${ENV_FILE}."
     exit 1
 fi
 
-if [[ "${REGION}" == "<YOUR_REGION>" ]]; then
-    error "You have not set REGION. Edit the top of this script."
+if [[ -z "${REGION:-}" ]]; then
+    error "GCP_REGION is not set in ${ENV_FILE}."
     exit 1
 fi
 

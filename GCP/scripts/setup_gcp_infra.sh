@@ -28,22 +28,26 @@ set -euo pipefail
 # These three flags together catch the most common shell script bugs.
 
 # ---------------------------------------------------------------------------
-# CONFIGURATION -- edit these three values before running
+# CONFIGURATION -- loaded from .env at the repo root
 # ---------------------------------------------------------------------------
 
-PROJECT_ID="<YOUR_GCP_PROJECT_ID>"
-# What to put here: your GCP project ID, NOT the project display name.
-# Find it with: gcloud projects list
-# Example: langchain-prod-stack-123456
+# Resolve the repo root (two levels up from this script: GCP/scripts/ -> root)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ENV_FILE="${REPO_ROOT}/.env"
 
-REGION="<YOUR_REGION>"
-# What to put here: the GCP region where you want to deploy.
-# Example: us-central1
-# Other options: us-east1, europe-west1, asia-east1
+if [[ ! -f "${ENV_FILE}" ]]; then
+    echo "[ERROR] .env file not found at ${ENV_FILE}"
+    echo "        Copy .env.example to .env and fill in your GCP_PROJECT_ID and GCP_REGION."
+    exit 1
+fi
 
+# shellcheck disable=SC1090
+source "${ENV_FILE}"
+
+PROJECT_ID="${GCP_PROJECT_ID}"
+REGION="${GCP_REGION}"
 SA_NAME="github-deployer"
-# The service account name. Change this only if you want a different name.
-# The full email will be: ${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
 
 # ---------------------------------------------------------------------------
 # Derived values -- do not edit below this line
@@ -79,13 +83,13 @@ if ! command -v gcloud &>/dev/null; then
 fi
 
 # Verify the user filled in the configuration values
-if [[ "${PROJECT_ID}" == "<YOUR_GCP_PROJECT_ID>" ]]; then
-    error "You have not set PROJECT_ID. Open this script and set it at the top."
+if [[ -z "${PROJECT_ID:-}" ]]; then
+    error "GCP_PROJECT_ID is not set in ${ENV_FILE}."
     exit 1
 fi
 
-if [[ "${REGION}" == "<YOUR_REGION>" ]]; then
-    error "You have not set REGION. Open this script and set it at the top."
+if [[ -z "${REGION:-}" ]]; then
+    error "GCP_REGION is not set in ${ENV_FILE}."
     exit 1
 fi
 
