@@ -30,10 +30,31 @@ except Exception:
         "temperature": 0.1,
     }
 
+from contextlib import asynccontextmanager
 from src.pipeline import SmolSearchPipeline
 
-app = FastAPI(title="SmolSearch", version="1.0.0", description="Semantic search with LCEL streaming.")
 _pipeline: SmolSearchPipeline | None = None
+
+_SEED_DOCS = [
+    ("seed_01", "LangChain is a framework for building LLM-powered applications using chains, agents, and memory."),
+    ("seed_02", "FAISS enables fast approximate nearest-neighbor search over dense embedding vectors at scale."),
+    ("seed_03", "RAG (Retrieval-Augmented Generation) combines document retrieval with generative models to reduce hallucination."),
+    ("seed_04", "Sentence transformers encode text into fixed-size semantic vectors that capture meaning, not just keywords."),
+    ("seed_05", "LangGraph is a library for building stateful multi-agent applications using directed graphs with shared state."),
+    ("seed_06", "LoRA (Low-Rank Adaptation) fine-tunes large models by injecting trainable low-rank matrices into attention layers."),
+    ("seed_07", "QLoRA combines quantization and LoRA to fine-tune large models on a single consumer GPU with minimal quality loss."),
+    ("seed_08", "Cloud Run is Google's serverless container platform that scales to zero when there is no traffic."),
+    ("seed_09", "Semantic caching stores LLM responses keyed by embedding similarity to avoid redundant inference calls."),
+    ("seed_10", "DPO (Direct Preference Optimization) trains models on human preference pairs without a separate reward model."),
+]
+
+
+@asynccontextmanager
+async def lifespan(app):
+    pipeline = get_pipeline()
+    docs = [Document(page_content=text, metadata={"id": doc_id}) for doc_id, text in _SEED_DOCS]
+    pipeline.add_documents(docs)
+    yield
 
 
 def get_pipeline() -> SmolSearchPipeline:
@@ -41,6 +62,14 @@ def get_pipeline() -> SmolSearchPipeline:
     if _pipeline is None:
         _pipeline = SmolSearchPipeline(_CFG)
     return _pipeline
+
+
+app = FastAPI(
+    title="SmolSearch",
+    version="1.0.0",
+    description="Semantic search with LCEL streaming. Seeded with 10 documents on startup — call /index to add your own.",
+    lifespan=lifespan,
+)
 
 
 class IndexRequest(BaseModel):
