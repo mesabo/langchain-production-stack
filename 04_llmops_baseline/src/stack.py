@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Iterator
 
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -112,6 +112,7 @@ class LLMOpsStack:
                 max_new_tokens=self.cfg.get("max_new_tokens", 64),
                 temperature=max(self.cfg.get("temperature", 0.1), 1e-6),
                 do_sample=False,
+                return_full_text=False,
             )
             self._llm = HuggingFacePipeline(pipeline=pipe)
         return self._llm

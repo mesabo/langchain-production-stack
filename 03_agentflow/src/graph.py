@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import math
+import re
 import sys
 import uuid
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -91,37 +93,101 @@ class AgentState(TypedDict):
     done: bool
 
 
-def build_agent_graph(llm, registry: ToolRegistry, max_steps: int = 5):
-    from langgraph.graph import StateGraph, END
-    from langchain_classic.agents import create_tool_calling_agent, AgentExecutor
-    from langchain_core.prompts import ChatPromptTemplate
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a precise assistant. Use tools to solve the task step by step."),
-        ("human", "{input}"),
-        ("placeholder", "{agent_scratchpad}"),
-    ])
-    tools = registry.all()
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    executor = AgentExecutor(
-        agent=agent,
-        tools=tools,
-        max_iterations=max_steps,
-        handle_parsing_errors=True,
-        return_intermediate_steps=True,
-        verbose=False,
+def _build_react_prompt(task: str, tools: list, history: str) -> str:
+    tool_descs = "\n".join(f"  {t.name}: {t.description}" for t in tools)
+    tool_names = ", ".join(t.name for t in tools)
+    return (
+        f"You have tools: [{tool_names}]\n\n"
+        f"Tool descriptions:\n{tool_descs}\n\n"
+        "Respond ONLY in this exact format:\n"
+        "Thought: <reasoning>\n"
+        "Action: <tool_name>\n"
+        "Action Input: <number or string>\n"
+        "...repeat Thought/Action/Action Input as needed...\n"
+        "Final Answer: <answer>\n\n"
+        f"Task: {task}\n"
+        f"{history}"
+        "Thought:"
     )
 
-    def run_agent(state: AgentState) -> AgentState:
+
+def _parse_tool_args(raw_input: str, schema: dict) -> dict:
+    """Parse raw input string into tool argument dict."""
+    keys = list(schema.keys())
+    if len(keys) == 1:
         try:
-            out = executor.invoke({"input": state["task"]})
-            steps = [
-                {"tool": s[0].tool, "args": s[0].tool_input, "result": str(s[1])}
-                for s in out.get("intermediate_steps", [])
-            ]
-            return {**state, "result": out.get("output", ""), "steps": steps, "done": True}
-        except Exception as exc:
-            return {**state, "result": f"ERROR: {exc}", "n_retries": state["n_retries"] + 1, "done": True}
+            return {keys[0]: ast.literal_eval(raw_input)}
+        except Exception:
+            return {keys[0]: raw_input}
+    # Multi-arg: try "a, b" or "(a, b)" forms
+    try:
+        val = ast.literal_eval(raw_input)
+        if isinstance(val, (tuple, list)) and len(val) >= len(keys):
+            return dict(zip(keys, val))
+    except Exception:
+        pass
+    try:
+        parts = [ast.literal_eval(x.strip()) for x in raw_input.split(",")]
+        if len(parts) >= len(keys):
+            return dict(zip(keys, parts))
+    except Exception:
+        pass
+    return {keys[0]: raw_input}
+
+
+def build_agent_graph(llm, registry: ToolRegistry, max_steps: int = 5):
+    from langgraph.graph import StateGraph, END
+    from langchain_core.prompts import PromptTemplate
+    from langchain_core.output_parsers import StrOutputParser
+
+    _chain = PromptTemplate.from_template("{text}") | llm | StrOutputParser()
+
+    def run_agent(state: AgentState) -> AgentState:
+        tools = registry.all()
+        history = ""
+        steps: list[dict] = []
+        result = ""
+
+        for _ in range(max_steps):
+            prompt_text = _build_react_prompt(state["task"], tools, history)
+            try:
+                raw = _chain.invoke({"text": prompt_text})
+            except Exception as exc:
+                result = f"LLM error: {exc}"
+                break
+
+            fa = re.search(r"Final Answer[:\s]+(.+?)(?:\n|$)", raw, re.IGNORECASE)
+            if fa:
+                result = fa.group(1).strip()
+                break
+
+            action_m = re.search(r"Action[:\s]+(\w+)", raw, re.IGNORECASE)
+            ainput_m = re.search(r"Action Input[:\s]+(.+?)(?:\n|$)", raw, re.IGNORECASE)
+
+            if not action_m:
+                result = raw.strip()[:200] if raw.strip() else "No parseable action"
+                break
+
+            tool_name = action_m.group(1).strip()
+            raw_input = ainput_m.group(1).strip() if ainput_m else ""
+            tool = registry.get(tool_name)
+
+            if tool is None:
+                obs = f"Tool '{tool_name}' not found. Available: {', '.join(t.name for t in tools)}"
+            else:
+                try:
+                    args = _parse_tool_args(raw_input, tool.args)
+                    obs = str(registry.dispatch(tool_name, args))
+                    steps.append({"tool": tool_name, "input": raw_input, "result": obs})
+                except Exception as exc:
+                    obs = f"Tool error: {exc}"
+
+            history += f" {raw}\nObservation: {obs}\nThought:"
+
+        if not result:
+            result = f"Completed {len(steps)} step(s)" if steps else "No result"
+
+        return {**state, "result": result, "steps": steps, "done": True}
 
     def route(state: AgentState) -> Literal["end"]:
         return "end"

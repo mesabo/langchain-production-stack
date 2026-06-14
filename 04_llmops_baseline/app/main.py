@@ -6,10 +6,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import time
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -61,8 +63,10 @@ def query(req: QueryRequest) -> dict[str, Any]:
     if cached is not None:
         return {"response": cached, "cache_hit": True, "latency_ms": 0}
 
+    t0 = time.perf_counter()
     response = stack.invoke(req.prompt)
-    return {"response": response, "cache_hit": False}
+    latency_ms = round((time.perf_counter() - t0) * 1000)
+    return {"response": response, "cache_hit": False, "latency_ms": latency_ms}
 
 
 @app.get("/metrics")

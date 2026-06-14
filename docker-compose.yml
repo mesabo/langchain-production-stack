@@ -1,0 +1,102 @@
+version: "3.9"
+
+# Local development environment.
+# All 4 services run in Docker, models cached in a shared named volume.
+#
+# Usage:
+#   docker compose up --build          # start all 4 services (builds first)
+#   docker compose up smolsearch       # start one service only
+#   docker compose down                # stop and remove containers
+#   docker compose down -v             # also delete the model cache volume
+#
+# Ports (local machine):
+#   SmolSearch:      http://localhost:8081
+#   RAGify:          http://localhost:8082
+#   AgentFlow:       http://localhost:8083
+#   LLMOps Baseline: http://localhost:8084
+#
+# Health checks:
+#   curl http://localhost:8081/health
+#   curl http://localhost:8082/health
+#   curl http://localhost:8083/health
+#   curl http://localhost:8084/health
+#
+# Difference from GCP (Cloud Run):
+#   Dev:  HF_HOME=/app/.cache/huggingface (persisted in Docker volume "hf_cache")
+#   Prod: HF_HOME=/tmp/.cache/huggingface (Cloud Run override via --set-env-vars)
+#
+# First run downloads models (~500 MB per service). Subsequent runs reuse the cache.
+
+services:
+
+  smolsearch:
+    build:
+      context: ./01_smolsearch
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8081:8080"
+    environment:
+      - HF_HOME=/app/.cache/huggingface
+    volumes:
+      - hf_cache:/app/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  ragify:
+    build:
+      context: ./02_ragify
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8082:8080"
+    environment:
+      - HF_HOME=/app/.cache/huggingface
+    volumes:
+      - hf_cache:/app/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  agentflow:
+    build:
+      context: ./03_agentflow
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8083:8080"
+    environment:
+      - HF_HOME=/app/.cache/huggingface
+    volumes:
+      - hf_cache:/app/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  llmops_baseline:
+    build:
+      context: ./04_llmops_baseline
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8084:8080"
+    environment:
+      - HF_HOME=/app/.cache/huggingface
+    volumes:
+      - hf_cache:/app/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  hf_cache:
+    driver: local
