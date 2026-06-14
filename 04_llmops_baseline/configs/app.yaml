@@ -1,0 +1,5 @@
+embed_backbone:   sentence-transformers/all-MiniLM-L6-v2
+backbone:         HuggingFaceTB/SmolLM2-135M-Instruct
+max_new_tokens:   128
+temperature:      0.1
+cache_threshold:  0.92

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.env
+.env.*
+*.log
+.cache/
+.cache/huggingface/
+*.nohup.log
+results/

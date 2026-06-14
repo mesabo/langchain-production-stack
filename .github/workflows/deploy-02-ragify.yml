@@ -1,0 +1,85 @@
+name: Deploy 02-RAGify to Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "02_ragify/**"
+      - ".github/workflows/deploy-02-ragify.yml"
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION:     ${{ secrets.GCP_REGION }}
+  SERVICE:    ragify
+  IMAGE:      ragify
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: 02_ragify/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r 02_ragify/requirements.txt
+          pip install pytest
+
+      - name: Run unit tests
+        env:
+          PYTHONPATH: 02_ragify
+        run: pytest 02_ragify/tests/ -v --tb=short
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        working-directory: 02_ragify
+        run: |
+          IMAGE_URI="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/slm-apps/${{ env.IMAGE }}:${{ github.sha }}"
+          docker build -f deploy/Dockerfile -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE }} \
+            --image "$IMAGE_URI" \
+            --region "${{ env.REGION }}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --memory 2Gi \
+            --cpu 2 \
+            --concurrency 10 \
+            --set-env-vars "HF_HOME=/tmp/.cache/huggingface" \
+            --quiet
+
+      - name: Show service URL
+        run: |
+          gcloud run services describe ${{ env.SERVICE }} \
+            --region "${{ env.REGION }}" \
+            --format "value(status.url)"
