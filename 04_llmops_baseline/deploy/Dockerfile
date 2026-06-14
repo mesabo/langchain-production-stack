@@ -1,4 +1,10 @@
 FROM python:3.11-slim
+LABEL maintainer="mesabo <mesabo18@gmail.com>" \
+      org.opencontainers.image.title="LLMOps-Baseline" \
+      org.opencontainers.image.description="Semantic cache, token tracking, and retry for LLM inference" \
+      org.opencontainers.image.authors="mesabo" \
+      org.opencontainers.image.url="https://mesabo.github.io" \
+      org.opencontainers.image.source="https://github.com/mesabo/langchain-production-stack"
 
 WORKDIR /app
 

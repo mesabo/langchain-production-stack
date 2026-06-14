@@ -1,4 +1,5 @@
 """AgentFlow FastAPI application — LangGraph stateful agent with tool registry."""
+# mesabo · https://mesabo.github.io
 
 from __future__ import annotations
 
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -112,8 +114,16 @@ app = FastAPI(
 | `latency_ms` | Wall-clock time including model inference and tool calls |
 """,
     openapi_tags=_TAGS,
-    contact={"name": "sLM Universe Learning", "email": "mesabo18@gmail.com"},
+    contact={
+        "name": "mesabo",
+        "url": "https://mesabo.github.io",
+        "email": "mesabo18@gmail.com",
+    },
     license_info={"name": "MIT"},
+    externalDocs={
+        "description": "Portfolio & source",
+        "url": "https://mesabo.github.io",
+    },
     swagger_ui_parameters={
         "defaultModelsExpandDepth": 3,
         "defaultModelExpandDepth": 3,
@@ -124,6 +134,13 @@ app = FastAPI(
         "syntaxHighlight.theme": "monokai",
         "persistAuthorization": True,
     },
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # ---------------------------------------------------------------------------

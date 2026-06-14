@@ -1,4 +1,10 @@
 FROM python:3.11-slim
+LABEL maintainer="mesabo <mesabo18@gmail.com>" \
+      org.opencontainers.image.title="RAGify" \
+      org.opencontainers.image.description="Multi-strategy RAG pipeline with RAGAS evaluation" \
+      org.opencontainers.image.authors="mesabo" \
+      org.opencontainers.image.url="https://mesabo.github.io" \
+      org.opencontainers.image.source="https://github.com/mesabo/langchain-production-stack"
 
 WORKDIR /app
 

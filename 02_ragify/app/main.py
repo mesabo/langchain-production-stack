@@ -1,4 +1,5 @@
 """RAGify FastAPI application — multi-strategy RAG with RAGAS evaluation."""
+# mesabo · https://mesabo.github.io
 
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -116,8 +118,16 @@ patterns on startup — you can call `POST /query` **immediately** without index
 - **Generation:** `HuggingFaceTB/SmolLM2-135M-Instruct`
 """,
     openapi_tags=_TAGS,
-    contact={"name": "sLM Universe Learning", "email": "mesabo18@gmail.com"},
+    contact={
+        "name": "mesabo",
+        "url": "https://mesabo.github.io",
+        "email": "mesabo18@gmail.com",
+    },
     license_info={"name": "MIT"},
+    externalDocs={
+        "description": "Portfolio & source",
+        "url": "https://mesabo.github.io",
+    },
     swagger_ui_parameters={
         "defaultModelsExpandDepth": 3,
         "defaultModelExpandDepth": 3,
@@ -128,6 +138,13 @@ patterns on startup — you can call `POST /query` **immediately** without index
         "syntaxHighlight.theme": "monokai",
         "persistAuthorization": True,
     },
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # ---------------------------------------------------------------------------
