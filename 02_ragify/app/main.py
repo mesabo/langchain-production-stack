@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -28,6 +30,8 @@ except Exception:
 from src.pipeline import RAGifyPipeline
 from langchain_core.documents import Document
 
+_SEED_PATH = Path(__file__).parent.parent / "data" / "seed_corpus.jsonl"
+
 _pipeline: RAGifyPipeline | None = None
 
 
@@ -36,6 +40,32 @@ def get_pipeline() -> RAGifyPipeline:
     if _pipeline is None:
         _pipeline = RAGifyPipeline(_CFG)
     return _pipeline
+
+
+def _load_seed_corpus() -> list[Document]:
+    """Load seed documents from data/seed_corpus.jsonl (one JSON object per line)."""
+    docs: list[Document] = []
+    if not _SEED_PATH.exists():
+        return docs
+    for line in _SEED_PATH.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+            docs.append(Document(page_content=obj["text"], metadata={"id": obj.get("id", "")}))
+        except Exception:
+            pass
+    return docs
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    pipeline = get_pipeline()
+    seed_docs = _load_seed_corpus()
+    if seed_docs:
+        pipeline.index(seed_docs)
+    yield
 
 
 _TAGS = [
@@ -59,6 +89,7 @@ _TAGS = [
 app = FastAPI(
     title="RAGify",
     version="1.0.0",
+    lifespan=lifespan,
     description="""
 ## Multi-strategy RAG with RAGAS evaluation
 
@@ -66,9 +97,12 @@ app = FastAPI(
 output for the same query side-by-side.
 
 ### Quick start
-1. **`POST /index`** — upload your documents (plain text list).
-2. **`POST /query`** — ask a question and pick a retrieval strategy.
-3. Compare the `answer` and `sources` across strategies to see the difference.
+The service **pre-loads 28 seed documents** covering sLM, LoRA/QLoRA/DPO, RAG, LangChain, and production
+patterns on startup — you can call `POST /query` **immediately** without indexing first.
+
+1. **`POST /query`** — ask a question right away (seed data is pre-loaded).
+2. **`POST /index`** — add your own documents to extend the index.
+3. Compare the `answer` and `sources` across all three strategies for the same question.
 
 ### Retrieval strategies
 | Strategy | Description | Best for |
@@ -227,6 +261,38 @@ Upload plain-text documents to the FAISS store.
     tags=["Index"],
     response_model=IndexResponse,
     responses={422: _ERR_VALIDATION},
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "gdpr_corpus": {
+                            "summary": "GDPR legal corpus (3 chunks)",
+                            "description": "Paste actual document passages. Each string is one retrievable chunk.",
+                            "value": {
+                                "documents": [
+                                    "GDPR Article 83 sets administrative fines of up to €20 million or 4% of global annual turnover for serious violations.",
+                                    "A personal data breach must be reported to the supervisory authority within 72 hours of the controller becoming aware of it.",
+                                    "Data subjects have the right to erasure ('right to be forgotten') under GDPR Article 17 when data is no longer necessary.",
+                                ]
+                            },
+                        },
+                        "ml_concepts": {
+                            "summary": "ML concept glossary (3 chunks)",
+                            "description": "Technical documentation — each entry is a self-contained concept definition.",
+                            "value": {
+                                "documents": [
+                                    "Attention mechanisms allow transformer models to weigh the relevance of each input token when producing an output.",
+                                    "Gradient checkpointing trades compute for memory by recomputing activations during the backward pass instead of storing them.",
+                                    "Speculative decoding uses a small draft model to propose token sequences that are verified in parallel by the large model.",
+                                ]
+                            },
+                        },
+                    }
+                }
+            }
+        }
+    },
 )
 def index(req: IndexRequest) -> IndexResponse:
     pipeline = get_pipeline()
@@ -237,7 +303,7 @@ def index(req: IndexRequest) -> IndexResponse:
 
 @app.post(
     "/query",
-    summary="RAG query",
+    summary="RAG query — retrieve context then generate answer",
     description="""
 Retrieve relevant chunks and generate a grounded answer.
 
@@ -265,6 +331,43 @@ so you can verify the answer is grounded.
     tags=["Query"],
     response_model=QueryResponse,
     responses={400: _ERR_NO_INDEX, 422: _ERR_VALIDATION},
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "similarity": {
+                            "summary": "similarity — fast nearest-neighbour (default)",
+                            "description": "Best starting point. Single embedding query, cosine nearest-neighbour retrieval.",
+                            "value": {
+                                "query": "What are the GDPR fines for a data breach affecting minors?",
+                                "k": 3,
+                                "strategy": "similarity",
+                            },
+                        },
+                        "mmr": {
+                            "summary": "mmr — diverse results",
+                            "description": "Use when the top-k chunks from similarity search are near-duplicates.",
+                            "value": {
+                                "query": "What are the main rights of data subjects under GDPR?",
+                                "k": 4,
+                                "strategy": "mmr",
+                            },
+                        },
+                        "multi_query": {
+                            "summary": "multi_query — wider recall via query rewriting",
+                            "description": "The LLM rewrites the query N times; results are merged. Slower but better for paraphrase-sensitive corpora.",
+                            "value": {
+                                "query": "How long does a company have to report a data breach?",
+                                "k": 3,
+                                "strategy": "multi_query",
+                            },
+                        },
+                    }
+                }
+            }
+        }
+    },
 )
 def query(req: QueryRequest) -> QueryResponse:
     pipeline = get_pipeline()

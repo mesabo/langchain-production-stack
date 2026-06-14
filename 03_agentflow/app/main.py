@@ -281,6 +281,46 @@ task
     tags=["Agent"],
     response_model=RunResponse,
     responses={400: _ERR_EMPTY_TASK, 422: _ERR_VALIDATION},
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "simple_sqrt": {
+                            "summary": "Square root — one tool call",
+                            "description": "Simplest path: agent calls `sqrt` once, returns the result.",
+                            "value": {"task": "What is the square root of 225?"},
+                        },
+                        "chained_ops": {
+                            "summary": "Chained operations — two tool calls",
+                            "description": "Agent must call `power` then `calculator` in sequence.",
+                            "value": {"task": "Calculate 2 raised to the power of 10, then add 24 to the result."},
+                        },
+                        "word_problem": {
+                            "summary": "Word problem — reasoning + arithmetic",
+                            "description": "Agent reasons about the problem, decomposes it, then uses the calculator.",
+                            "value": {
+                                "task": (
+                                    "A SmolLM2-360M model has 360 million parameters. "
+                                    "If each parameter uses 2 bytes (float16), how many megabytes of VRAM does it need?"
+                                )
+                            },
+                        },
+                        "multi_step": {
+                            "summary": "Multi-step pipeline — three operations",
+                            "description": "Exercises the full ReAct loop with 3 consecutive tool calls.",
+                            "value": {
+                                "task": (
+                                    "First compute sqrt(144), then raise that result to the power of 3, "
+                                    "then subtract 100. What is the final answer?"
+                                )
+                            },
+                        },
+                    }
+                }
+            }
+        }
+    },
 )
 def run(req: RunRequest) -> RunResponse:
     if not req.task.strip():

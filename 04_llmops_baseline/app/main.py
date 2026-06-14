@@ -237,6 +237,52 @@ Send a prompt to the sLM with automatic semantic caching.
     tags=["Inference"],
     response_model=QueryResponse,
     responses={422: _ERR_VALIDATION},
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "first_call": {
+                            "summary": "1st call — cache miss (LLM invoked)",
+                            "description": "Run this first. The model is called and the result is stored in the cache.",
+                            "value": {
+                                "prompt": "Explain LoRA fine-tuning in one sentence.",
+                                "bypass_cache": False,
+                            },
+                        },
+                        "paraphrase_cache_hit": {
+                            "summary": "2nd call — paraphrase → cache HIT",
+                            "description": (
+                                "Run this after the first call. "
+                                "Semantically similar to the first prompt (cosine ≥ 0.92) — should return "
+                                "cache_hit=true and latency_ms=0 without calling the model."
+                            ),
+                            "value": {
+                                "prompt": "What is LoRA and how does it fine-tune a model efficiently?",
+                                "bypass_cache": False,
+                            },
+                        },
+                        "bypass_cache": {
+                            "summary": "Force fresh generation — bypass_cache=true",
+                            "description": "Forces the model to run even if a cached answer exists. Use to refresh a stale cached response.",
+                            "value": {
+                                "prompt": "Explain LoRA fine-tuning in one sentence.",
+                                "bypass_cache": True,
+                            },
+                        },
+                        "different_topic": {
+                            "summary": "New topic — cache miss on a different concept",
+                            "description": "Unrelated to the LoRA prompt — will be a fresh cache miss.",
+                            "value": {
+                                "prompt": "What is DPO and how does it differ from RLHF?",
+                                "bypass_cache": False,
+                            },
+                        },
+                    }
+                }
+            }
+        }
+    },
 )
 def query(req: QueryRequest) -> QueryResponse:
     stack = get_stack()

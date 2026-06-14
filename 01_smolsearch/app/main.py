@@ -284,6 +284,38 @@ Add one or more plain-text documents to the in-memory FAISS index.
     tags=["Index"],
     response_model=IndexResponse,
     responses={422: _ERR_VALIDATION},
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "auto_ids": {
+                            "summary": "Auto-generated IDs (simplest)",
+                            "description": "Let the service assign doc_0, doc_1, … IDs automatically.",
+                            "value": {
+                                "documents": [
+                                    "LoRA (Low-Rank Adaptation) fine-tunes models by injecting small trainable matrices into attention layers.",
+                                    "QLoRA combines 4-bit NF4 quantisation with LoRA, enabling fine-tuning on a single consumer GPU.",
+                                    "DPO (Direct Preference Optimization) trains on human preference pairs without a separate reward model.",
+                                ],
+                            },
+                        },
+                        "custom_ids": {
+                            "summary": "Custom IDs (recommended for citation)",
+                            "description": "Provide explicit IDs so you can trace which document each search result came from.",
+                            "value": {
+                                "documents": [
+                                    "FAISS IndexFlatL2 performs exact L2 nearest-neighbour search over dense vectors.",
+                                    "FAISS IndexHNSWFlat uses a hierarchical graph for approximate search — 10-100× faster at large scale.",
+                                ],
+                                "ids": ["faiss_flat", "faiss_hnsw"],
+                            },
+                        },
+                    }
+                }
+            }
+        }
+    },
 )
 def index_documents(req: IndexRequest) -> IndexResponse:
     pipeline = get_pipeline()
@@ -312,6 +344,31 @@ Retrieve the top-k most relevant documents for a natural language query.
     tags=["Search"],
     response_model=SearchResponse,
     responses={400: _ERR_NO_INDEX, 422: _ERR_VALIDATION},
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "similarity_basic": {
+                            "summary": "Similarity search — top 3 results",
+                            "description": "Standard cosine nearest-neighbour: fastest and highest per-result relevance.",
+                            "value": {"query": "How does LoRA reduce trainable parameters?", "k": 3, "mode": "similarity"},
+                        },
+                        "mmr_diverse": {
+                            "summary": "MMR search — diverse top 5",
+                            "description": "Use MMR when results feel repetitive or cover the same angle multiple times.",
+                            "value": {"query": "What are the main fine-tuning techniques for LLMs?", "k": 5, "mode": "mmr"},
+                        },
+                        "single_result": {
+                            "summary": "Best-match only (k=1)",
+                            "description": "Return only the single most relevant document.",
+                            "value": {"query": "What is semantic caching?", "k": 1, "mode": "similarity"},
+                        },
+                    }
+                }
+            }
+        }
+    },
 )
 def search(req: SearchRequest) -> SearchResponse:
     pipeline = get_pipeline()
@@ -342,6 +399,31 @@ The endpoint **blocks** until the full answer is generated. For token-by-token s
     tags=["Answer"],
     response_model=AnswerResponse,
     responses={400: _ERR_NO_INDEX, 422: _ERR_VALIDATION},
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "concept_question": {
+                            "summary": "Concept question (seed docs)",
+                            "description": "Works out of the box — the 10 seed docs cover sLM concepts.",
+                            "value": {"query": "What is semantic caching and why does it reduce LLM cost?", "k": 3},
+                        },
+                        "comparison_question": {
+                            "summary": "Comparison question — wider context",
+                            "description": "Use k=5 to pull in more context for comparison-style questions.",
+                            "value": {"query": "What is the difference between LoRA and QLoRA?", "k": 5},
+                        },
+                        "factual_lookup": {
+                            "summary": "Factual lookup — tight context (k=1)",
+                            "description": "Single chunk is enough for a simple factual lookup.",
+                            "value": {"query": "What is DPO?", "k": 1},
+                        },
+                    }
+                }
+            }
+        }
+    },
 )
 def answer(req: AnswerRequest) -> AnswerResponse:
     pipeline = get_pipeline()
@@ -353,7 +435,7 @@ def answer(req: AnswerRequest) -> AnswerResponse:
 
 @app.post(
     "/stream",
-    summary="RAG answer (streaming)",
+    summary="RAG answer (streaming — tokens arrive as produced)",
     description="""
 Retrieve context and **stream** the generated answer token-by-token as plain text.
 
