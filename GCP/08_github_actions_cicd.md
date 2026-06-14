@@ -51,21 +51,30 @@ Add these three secrets one at a time:
 ### Secret 1: `GCP_PROJECT_ID`
 
 - Name: `GCP_PROJECT_ID`
-- Value: your GCP project ID (e.g., `my-langchain-proj-123456`)
+- Value: `langchain-dev-stack`
 
-This is the plain text project ID, not a JSON object.
+**Already set** — this was added via `gh secret set GCP_PROJECT_ID`.
 
 ### Secret 2: `GCP_REGION`
 
 - Name: `GCP_REGION`
-- Value: your GCP region (e.g., `us-central1`)
+- Value: `asia-northeast1` (Tokyo)
+
+**Already set** — this was added via `gh secret set GCP_REGION`.
 
 ### Secret 3: `GCP_SA_KEY`
 
 - Name: `GCP_SA_KEY`
 - Value: the full contents of `key.json`
 
-Open `key.json` in a text editor. Select everything from the opening `{` to the closing `}`. Copy the entire JSON object. Paste it as the secret value.
+**Still required.** After completing `05_service_account_iam.md` and exporting `key.json`, add it with:
+
+```bash
+gh secret set GCP_SA_KEY --body "$(cat key.json)" --repo mesabo/langchain-production-stack
+rm key.json
+```
+
+Or manually: open `key.json` in a text editor, select everything from `{` to `}`, and paste it as the secret value.
 
 The JSON looks like:
 
@@ -111,7 +120,7 @@ name: Deploy SmolSearch
 on:
   push:
     branches:
-      - main            # Only run on pushes to main, not feature branches
+      - release         # Only run on pushes to release, not feature branches
     paths:
       - "01_smolsearch/**"   # Only run when files inside 01_smolsearch/ change
       - ".github/workflows/deploy-01-smolsearch.yml"  # Also run if the workflow itself changes
@@ -227,15 +236,25 @@ This is why storing credentials in secrets (not hardcoded in the YAML) is mandat
 
 ## Step 3: Trigger the workflow
 
+The workflows trigger on push to the `release` branch. When you are ready to deploy:
+
 ```bash
-# Make a small change to a smolsearch file and push to main
-echo "# deployment test" >> 01_smolsearch/README.md
-git add 01_smolsearch/README.md
-git commit -m "test ci deploy trigger"
-git push origin main
+# First-time setup: create and push the release branch
+git checkout main
+git pull origin main
+git checkout -b release
+git push -u origin release
 ```
 
-The `paths` filter in the workflow means this only triggers `deploy-01-smolsearch.yml`. It does not trigger the workflows for the other three services.
+After that, merge `main` into `release` whenever you want to deploy:
+
+```bash
+git checkout release
+git merge main
+git push origin release
+```
+
+The `paths` filter means only the workflow for the changed service fires — a change to `01_smolsearch/` does not trigger the `02_ragify` workflow.
 
 ---
 

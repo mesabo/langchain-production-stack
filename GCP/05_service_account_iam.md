@@ -30,8 +30,9 @@ For our deployer service account we need exactly three roles.
 Before running any command in this file, set these variables in your terminal. The commands below use them.
 
 ```bash
-# Replace with your actual project ID
-PROJECT_ID="<YOUR_GCP_PROJECT_ID>"
+# This project's values — already set up in .env at the repo root
+PROJECT_ID="langchain-dev-stack"
+PROJECT_NUMBER="911301655327"
 
 # The service account name (the part before @)
 SA_NAME="github-deployer"
@@ -110,9 +111,9 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
 When Cloud Run starts a container, it pulls the Docker image from Artifact Registry. The pull happens using the Compute Engine default service account, not the `github-deployer` SA. You must grant this account read access to Artifact Registry.
 
 ```bash
-# Get the project number (needed to construct the Compute Engine default SA email)
-# --format="value(projectNumber)" extracts just the number from the output
-PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format="value(projectNumber)")
+# Project number is already known: 911301655327
+# To look it up yourself: gcloud projects describe ${PROJECT_ID} --format="value(projectNumber)"
+PROJECT_NUMBER="911301655327"
 
 echo "Project number: $PROJECT_NUMBER"
 # The Compute Engine default SA email is always <project-number>-compute@developer.gserviceaccount.com

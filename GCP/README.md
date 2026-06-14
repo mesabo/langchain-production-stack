@@ -34,13 +34,14 @@ Each service has a `deploy/Dockerfile` that packages it for production.
 
 Before running any command in this guide, decide on these three values and write them down. Every command in every file uses them.
 
-| Variable | What it is | Example |
+| Variable | What it is | This project's value |
 |---|---|---|
-| `PROJECT_ID` | Your GCP project identifier (not display name) | `my-langchain-proj-123456` |
-| `REGION` | GCP region where you deploy services | `us-central1` |
-| `SA_EMAIL` | Service account email (created in step 5) | `github-deployer@my-langchain-proj-123456.iam.gserviceaccount.com` |
+| `PROJECT_ID` | GCP project identifier (not display name) | `langchain-dev-stack` |
+| `PROJECT_NUMBER` | Numeric ID shown in GCP Console | `911301655327` |
+| `REGION` | GCP region where services are deployed | `asia-northeast1` |
+| `SA_EMAIL` | Service account email (created in step 5) | `github-deployer@langchain-dev-stack.iam.gserviceaccount.com` |
 
-Wherever this guide shows `<PROJECT_ID>`, replace that with your actual project ID. Same for `<REGION>` and `<SA_EMAIL>`.
+These values are also stored in `.env` at the repo root. The deploy scripts read them from there automatically.
 
 ---
 
@@ -73,7 +74,7 @@ Files: `01` → `02` → `03` → `04` → `05` → `06` → `07`
 
 ### Track B: CI/CD deploy (after manual deploy works)
 
-After completing Track A, read file 08. This adds GitHub Actions so every push to `main` triggers an automatic test-build-deploy cycle.
+After completing Track A, read file 08. This adds GitHub Actions so every push to the `release` branch triggers an automatic test-build-deploy cycle.
 
 Files: `01` → `02` → `03` → `04` → `05` → `08`
 
